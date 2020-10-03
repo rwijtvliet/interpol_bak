@@ -5,6 +5,7 @@ Tests and illustrations of the functions.
 
 from interpol import point2color as p2c
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 from matplotlib.colors import to_rgb
 import numpy as np
 
@@ -52,7 +53,7 @@ fig.tight_layout()
 # %% Interpolation functions in/around set of points.
 
 fig, axes = plt.subplots(2, 3, figsize=(10, 6))
-fig.suptitle('')
+fig.suptitle('interpolation with numbers (top) and colors (below)')
 pix = 150
 corners = 10
 
@@ -259,3 +260,4 @@ for i, ax in enumerate(axs.flatten()):
                         'abc'[(i+1)%3] + ' second fastest'])
     for s in ax.spines.values():
         s.set_visible(False)
+        

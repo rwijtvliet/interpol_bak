@@ -1,5 +1,5 @@
 """
-Color interpolation functions.
+Interpolation functions, mainly for color.
 
 2020-09 rwijtvliet@gmail.com
 """    
@@ -8,7 +8,7 @@ from matplotlib.colors import to_rgb, LinearSegmentedColormap
 import numpy as np
 from typing import Iterable, Callable
 from scipy.spatial import Delaunay, ConvexHull
-import interpol.polygonate as pg
+from interpol.polygonate import Polygonate
 
 SR3 = np.sqrt(3)
 
@@ -151,17 +151,17 @@ def polygons(anchorpoints:Iterable, anchorvalues:Iterable) -> Callable:
         raise ValueError("At least 3 anchorpoints must be specified.")
     
     # Tesselate into polygons.
-    polygonate = pg.Polygonate(anchorpoints, convex=False)
+    pg = Polygonate(anchorpoints, convex=False)
     # Interpolation function for each polygon...
     interpf = [polygon(anchorpoints[shape], anchorvalues[shape])
-               for shape in polygonate.shapes]
+               for shape in pg.shapes]
     # ...and inter(extra)polation function for the hull.
     hull = ConvexHull(anchorpoints).vertices
     interpf_hull = polygon(anchorpoints[hull], anchorvalues[hull])
     
     def interp(point):
         # Find simplex point is in.
-        s = polygonate.find_shape(point) #simplex that contains point. (-1 means point is in none)
+        s = pg.find_shape(point) #simplex that contains point. (-1 means point is in none)
         if s > -1: #normal point, inside the hull
             return interpf[s](point)
         else: #point outside the hull
@@ -255,41 +255,31 @@ def interp_on_3axes(valuesA:Iterable, valuesB:Iterable, valuesC:Iterable,
         'normal' barycentric coordinates are used. Otherwise, 'generalised' bary-
         centric coordinates are used.
     """
-    from scipy.spatial import Delaunay
     valuesABC = np.array([np.array(valuesA), np.array(valuesB), np.array(valuesC)])
     cornersABC = np.array([(0, 1), (-SR3/2, -0.5), (SR3/2, -0.5)])
 
-    anchors_ax = [[{'point': corner * (1-i/len(values)), 'value': value} 
-                   for i, value in enumerate(values)]
-                  for corner, values in zip(cornersABC, valuesABC)]
-    anchor_ctr = {'point': (0,0), 'value': valueCenter} if valueCenter else None
+    anchorpoints, anchorvalues = [], []
+    for corner, values in zip(cornersABC, valuesABC):
+        for i, value in enumerate(values):
+            anchorpoints.append(corner * (1 - i/len(values)))
+            anchorvalues.append(value)
+    if valueCenter:
+        anchorpoints.append([0, 0])
+        anchorvalues.append(valueCenter)
+    anchorpoints, anchorvalues = np.array(anchorpoints), np.array(anchorvalues)
     
-    def polygon(*anchors):
-        points = [anchor['point'] for anchor in anchors]
-        values = [anchor['value'] for anchor in anchors]
-        return {'shape': Delaunay(points), 'f': polygon(points, values)}
+    pg = Polygonate(anchorpoints, convex = True)
+    interpf = [polygon(anchorpoints[ai], anchorvalues[ai]) for ai in pg.shapes]
 
-    if anchor_ctr is not None:
-        polys = []
-        for i in range(3):
-            a1, a2 = anchors_ax[(i+1)%3], anchors_ax[i]
-            polys.append(polygon(*a1, anchor_ctr, *np.flip(a2)))
-    else:
-        polys = [polygon(*[anchors[-1] for anchors in anchors_ax])] #central triangle
-        for i in range(3):
-            a1, a2 = anchors_ax[(i+1)%3], anchors_ax[i]
-            if len(a1) > 1 or len(a2) > 1:
-                polys.append(polygon(*a1, *np.flip(a2))) #outside shapes (if any)
-        
     def interp(*abc:float):
         abc = np.array(abc)
         abc = abc - abc.min() #does not change location of point
         if abc.sum() > 1:
             abc = abc / abc.sum() #make sure it stays inside triangle
         point = abc.dot(cornersABC)
-        for p in polys:
-            if p['shape'].find_simplex(point) > -1:
-                return p['f'](point)
+        s = pg.find_shape(point)
+        if s > -1:
+            return interpf[s](point)
         return None #should never happen
     
     return interp

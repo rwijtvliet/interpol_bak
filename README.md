@@ -2,15 +2,14 @@
 
 General interpolation inside a polygon, and color maps with >1 input value. Generalisation of linear colormap, which has (at most) 2 extremes, to triangular colormap, which has 3 extremes.
 
-## Interpolation inside a shape: `triangles` and `polygon`
-There are 2 functions to interpolate inside a shape.
+## Interpolation in the plane: `triangles` and `polygons`
+There are 2 functions to interpolate around a set of points.
 
 * `triangles` tesselates the plane with triangles based on the provided anchorpoints, and does 'standard' barycentric interpolation within each triangle. Disadvantage: a maximum of 3 anchors is used for any point, which does not always look good. Also, extrapolation, i.e. to points that do not lay within the convex hull around the anchorpoints, is not possible. If wanted, the function tries nonetheless, but results are often poor.
-* `polygon` is a more general function, that gives better results. The only drawback is that the anchorpoints must be given in order, as a chain describing the boundary of the polygon - there may be no internal points. 
+* `polygons` is a more general function, that gives better results. It divides the plane into *polygons* and does interpolation inside of them, based on the algorithm described in [this great article](https://cgvr.cs.uni-bremen.de/papers/barycentric/barycentric.pdf)
 
-Here a comparison between the two. The first column shows how the first function interpolates; note how the tesselation triangles are quite visible. The second column shows how the second function interpolates, which is much better. (The dots indicate the anchor points.)
-![image with squares](in_shape_square.png)
-![image with circles](in_shape_circle.png)
+Here a comparison between the two. The first column shows how the first function interpolates; note how the tesselation triangles are quite visible. The second column shows how the second function interpolates, which is also not perfect, but definitely much better. (The dots indicate the anchor points.)
+![interpolation in plane](comparison_in_plane.png)
 
 ## Background: colormaps
 The interpolation functions above can be used for colormaps with 3 axes. For a better understanding, we go into colormaps with 1 and 2 axes first, even though these don't use the interpolation functions.
