@@ -3,12 +3,13 @@
 Tests and illustrations of the functions.
 """
 
-from intercolor import point2color as p2c
+from interpol import point2color as p2c
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgb
 import numpy as np
 
 SR3 = np.sqrt(3)
+
 
 # %% Interpolation functions in single polygon.
 
@@ -47,11 +48,43 @@ for j in range(2):
     axes[j, 2].set_title('Delta')
 fig.tight_layout()
 
-#%%
-# Example with some triangles.
 
-for  
+# %% Interpolation functions in/around set of points.
 
+fig, axes = plt.subplots(2, 3, figsize=(10, 6))
+fig.suptitle('')
+pix = 150
+corners = 10
+
+anchors = np.random.rand(corners*2).reshape(-1, 2)
+extremes = np.array([anchors.min(axis=0), anchors.max(axis=0)])
+extremes = np.array([[1.3, -0.3], [-0.3, 1.3]]) @ extremes # add 30% margin
+extent = extremes.T.flatten() #xmin xmax ymin ymax
+
+for j in range(2):
+    if j == 0:
+        values = np.random.rand(len(anchors)) + 0.1
+        f0 = p2c.triangles(anchors, values)
+        f1 = p2c.polygons(anchors, values)
+    else:
+        values = np.random.rand(len(anchors), 3)
+        f0 = p2c.triangles(anchors, values)
+        f1 = p2c.polygons(anchors, values)
+
+    data = np.array([[[v0:=f0((x,y)), v1:=f1((x,y)), np.abs(v1-v0)]
+                      for x in np.linspace(extent[0], extent[1], pix)]
+                     for y in np.linspace(extent[2], extent[3], pix)])
+    for i, ax in enumerate(axes[j]):
+        ax.imshow(data[:, :, i], origin='lower', extent=extent, cmap='gist_heat',
+                  vmin=0, vmax=data.max())
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.plot(anchors[:,0], anchors[:,1], 'ko', markersize=4)
+        ax.plot(anchors[:,0], anchors[:,1], 'wo', markersize=2)
+    axes[j, 0].set_title('Standard, with triangle(s)')
+    axes[j, 1].set_title('Generalised, with polygon(s)')
+    axes[j, 2].set_title('Delta')
+fig.tight_layout()
 
 
 # %% Interpolation on 1 axis.
