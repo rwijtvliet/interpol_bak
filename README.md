@@ -50,6 +50,11 @@ Note that this means that the color that corresponds to (bike takes 4 minutes, c
 
 The color mapping function to find the color of a point (*a*, *b*), is returned by `cmap2`. The arguments to this function are the colors on either axis, as well as the one in the middle. It's also possible to include arguments that handle the mapping of the input domain, in (the likely) case the extremes on the axes do *not* correspond to a difference between *a* and *b* of exactly 1.
 
+Sample usage:
+```python
+cm = cmap2([to_rgb('r')], [to_rgb('g'), to_rgb('y')])
+cm(0.2, 0.5) #(0.7830065359477124, 0.6509803921568628, 0.0, 1.0) (includes alpha)
+```
 
 ## Colormap with 3 axes: `cmap3`
 Now, what if we have another transport mode in that last example? What if we also have the option of taking public transport, and want to be able to pick a color, based on the differences in time needed to get somewhere by bike, car, or public transport?
@@ -71,3 +76,10 @@ The location on the triangle that a color is selected from, indicates the relati
 ![3 axes, explainer](cmap3_transport_special.png)
 
 The color mapping function to find the color of a point (*a*, *b*, *c*), is returned by `cmap3`. The arguments to this function are the colors on each axis, as well as the one in the middle. Here, too, it's possible to include arguments that handle the mapping of the input domain.
+
+Sample usage:
+```python
+cm = cmap3([to_rgb('r')], [to_rgb('g'), to_rgb('y')], [to_rgb('b')])
+cm(0.2, 0, 0.5) #array([0.48, 0.28, 0.78])
+```
+

@@ -260,4 +260,8 @@ for i, ax in enumerate(axs.flatten()):
                         'abc'[(i+1)%3] + ' second fastest'])
     for s in ax.spines.values():
         s.set_visible(False)
-        
+
+#%%
+
+cm = p2c.cmap2([to_rgb('r')], [to_rgb('g'), to_rgb('y')])
+cm(0.2, 0.5) #array([0.48, 0.28, 0.78])

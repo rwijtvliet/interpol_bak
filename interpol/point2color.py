@@ -134,11 +134,11 @@ def triangles(anchorpoints:Iterable, anchorvalues:Iterable, valoutside=None) -> 
 
 def polygons(anchorpoints:Iterable, anchorvalues:Iterable) -> Callable:
     """
-    Generalised barycentric interpolation function for point inside a single 
-    polygon, or, more generally, for point inside the convex hull around a 
-    set of anchor points that is tesselated with polygons.
+    Generalised barycentric interpolation function for point in-/outside a 
+    single polygon, or, more generally, for point in-/outside the convex hull 
+    around a set of anchor points that is tesselated with polygons.
     
-    The function tessalates when necessary.
+    The function tesselates when necessary.
     
     The returned function takes a point (2-Iterable) and returns the inter-
     polated value (or extrapolated value if the point lies outside the shape).
