@@ -1,11 +1,11 @@
 # interpol
 
-Package with interpolation functions
+Package with interpolation functions:
 
 * Functions for interpolation in/around a polygon and in the plane.
 * Generalised color maps which accept >1 input value.
 
-In all code samples, the line module `point2color` is assumed to be imported `as p2c`.
+In all code samples, the module `point2color` is assumed to be imported `as p2c`.
 
 ## Interpolation in the plane
 
