@@ -3,12 +3,13 @@ Interpolation functions, mainly for color.
 
 2020-09 rwijtvliet@gmail.com
 """    
-    
-from matplotlib.colors import to_rgb, LinearSegmentedColormap
+
+from matplotlib.colors import to_rgba, LinearSegmentedColormap
 import numpy as np
-from typing import Iterable, Callable
+from typing import Iterable, Callable, Tuple
 from scipy.spatial import Delaunay, ConvexHull
 from interpol.polygonate import Polygonate
+
 
 SR3 = np.sqrt(3)
 
@@ -128,7 +129,9 @@ def triangles(anchorpoints:Iterable, anchorvalues:Iterable, valoutside=None) -> 
 
         # Get interpolated value.
         value = np.dot(anchorvalues[indices].T, weights)
-        return value 
+        return value
+    
+    interp.delaunay = delaunay #attach to function for debugging/visualisation
     return interp
 
 
@@ -166,178 +169,270 @@ def polygons(anchorpoints:Iterable, anchorvalues:Iterable) -> Callable:
             return interpf[s](point)
         else: #point outside the hull
             return interpf_hull(point)
+    
+    interp.polygonate = pg #attach to function for debugging/visualitation
     return interp
 
 
-#%% Interpolation on 2 axes.
+# %% ColorMap objects
 
-def cmap2(colorsA:Iterable=[to_rgb('r')], colorsB:Iterable=[to_rgb('g')],
-               colorCenter=None, maxdiff=1, ratio:bool=False) -> Callable:
+class ColorMap2:
     """
-    Create function to find color from 2 float values.
+    Create colormap to find color from the relative sizes of 2 float values.
     
     Arguments:
-        colorsA is a list of colors, which are used if the value on axis A is 
-        larger than than on axis B. colorCenter, if specified, is the color 
-        used if values on both axes are equal.
-        maxdiff: if the difference (if ratio == False) or the ratio between
-        values is larger than this maximum, the colors are clipped.
-        ratio: specifies if difference (False) or ratio (True, default) between 
-        the values must be calculated. 
+        colorsA (colorsB) is a list of colors, which are used if the value on 
+        axis A (B) is largest. colorCenter, if specified, is the color used if
+        values on both axes are equal.
+        maxdiff: if the difference between the values is larger than this 
+        maximum, the colors are clipped.
+    """
+    def __init__(self, 
+                 colorsA:Iterable=['red'], 
+                 colorsB:Iterable=['green'], 
+                 colorCenter=None, 
+                 maxdiff=1):
+        self.maxdiff = maxdiff
+        self._interp = self._interpf(colorsA, colorsB, colorCenter)
+        
+    def _interpf(self, colorsA:Iterable, colorsB:Iterable, colorCenter=None):
+        """Returns interpolation function to find color for normalized values u and v."""
+        lst = []
+        for c, v in zip(colorsA, np.linspace(0, 0.5, len(colorsA), False)):
+            lst.append((v, to_rgba(c)))
+        if colorCenter:
+            lst.append((0.5, to_rgba(colorCenter)))
+        for c, v in zip(np.flip(colorsB, axis=0),
+                        np.flip(np.linspace(1, 0.5, len(colorsB), False))):
+            lst.append((v, to_rgba(c)))
+        cmap = LinearSegmentedColormap.from_list('2axes', lst)
+        f = lambda u, v: cmap(self._uv_to_x((u, v), True))
+        return f
+    
+    def _uv_to_x(self, uv:Iterable[float], clip:bool=False) -> float:
+        """
+        Map normed values uv along axes A and B onto x-coordinate [0..1] along
+        1D-colormap.
+        . If clip==True, clips the x-coordinate so that it stays inside [0, 1].
+        """
+        x = 0.5 + 0.5*(uv[1] - uv[0])
+        if clip:
+            x = np.clip(x, 0, 1)
+        return x
 
-    Returns:
+    def color(self, *ab:float) -> Tuple[float]:
+        """
         Function that accepts values a and b, and returns the color that 
         best fits this datapoint. Smallest value is used as reference for the
-        other.
-    """
-    lst = []
-    for c, v in zip(colorsA, np.linspace(0, 0.5, len(colorsA), False)):
-        lst.append((v, c))
-    if colorCenter:
-        lst.append((0.5, colorCenter))
-    for c, v in zip(np.flip(colorsB, axis=0),
-                    np.flip(np.linspace(1, 0.5, len(colorsB), False))):
-        lst.append((v, c))
-    cmap = LinearSegmentedColormap.from_list('2axes', lst)
-    f = lambda a, b: cmap(0.5 + 0.5*(b - a))
-
-    def color(*ab:float):
-        ab = np.array(ab) / maxdiff #mapping full scale to [0, 1]
-        return f(*ab)
+        other one.
+        """
+        uv = np.array(ab) / self.maxdiff #normalize
+        return to_rgba(np.clip(self._interp(*uv), 0, 1))
+    
+    def colorbar(self, cax, pixels=200, orientation='horizontal', aspect=20):
+        """Draws a legend into the cax axes object."""
+        img = np.array([[self.color(0, b) for b in self.maxdiff * np.linspace(-1, 1, pixels)]])
+        extent = np.array([0, 1, -0.5/aspect, 0.5/aspect]) #* self.maxdiff
+        if orientation=='vertical':
+            img = img.transpose(1, 0, 2)
+            extent = np.roll(extent, 2)
+        cax.imshow(img, extent=extent, origin='lower', aspect='equal')
+        if orientation=='vertical':
+            cax.set_xticks([])
+        else:
+            cax.set_yticks([])
         
-        # # Turn into correct range: one component being 0, and others maximum of 1.
-        # if ratio:
-        #     minval = np.min(abc)
-        #     if minval <= 0: minval = 0.01
-        #     abc = mapper(abc / minval)
-        # else:
-        #     abc = mapper(abc - np.min(abc))
-        # # 3D to 2D, inside the triangle
-        # times = np.argmax(abc) #index of best value; determines how often to rotate to project onto A or axis a
-        # point = np.linalg.matrix_power(R2, times) \
-        #     @ T @ np.linalg.matrix_power(R3, times) @ abc
-        # return f(point)
+        def setticks(ab_list:Iterable[Iterable[float]],  *args, **kwargs):
+            ticks = []
+            for ab in ab_list:
+                uv = np.array(ab) / self.maxdiff
+                x = self._uv_to_x(uv, clip=True)
+                ticks.append(x)
+            if orientation == 'vertical':
+                cax.set_yticks(ticks)
+            else:
+                cax.set_xticks(ticks)
+            cax.get_ticks = lambda: ab_list
+        cax.set_ticks = setticks
+        
+        def setticklabels(label_list:Iterable[str], *args, **kwargs):   
+            if orientation == 'vertical':
+                cax.set_yticklabels(label_list, *args, **kwargs)
+            else:
+                cax.set_xticklabels(label_list, *args, **kwargs)
+        cax.set_ticklabels = setticklabels
 
-    return color
 
-
-#%% Interpolation on 3 axes.
-
-def interp_on_3axes(valuesA:Iterable, valuesB:Iterable, valuesC:Iterable,
-                    valueCenter=None) -> Callable:
+class ColorMap3:
     """
-    Create function for interpolation on three axes, with specified values on 
-    the axes. The axes meet at the center, where a value can also be specified.
-    NB: the word 'value' can be substituted with 'color' if used for color 
-    interpolation.
+    Create colormap to find color from the relative sizes of 3 float values.
     
     Arguments:
-        valuesA (and valuesB and valuesC) is an Iterable of values. The first
-        value is put at the extreme end of axis A. Other values (if any) are
-        linearly distributed between the end and the center.
-        valueCenter is a single value. If specified, it is put at the center.
+        colorsA (colorsB, colorsC) is a list of colors, which are used if value 
+        a (b, c) is largest, and the other two are equal. 
+        colorCenter, if specified, is the color used if values a, b, and c are 
+        equal. 
+        (In other cases, there is an interpolation between the specified colors.)
+        maxdiff: if the difference between values is larger than this maximum, 
+        the colors are clipped.
+    """
+
+    _cornersABC = np.array([(0, 1), (-SR3/2, -0.5), (SR3/2, -0.5)])
+
+    def __init__(self, 
+                 colorsA:Iterable=['red'], 
+                 colorsB:Iterable=['green'], 
+                 colorsC:Iterable=['blue'], 
+                 colorCenter=None, 
+                 maxdiff=1):
+        self.maxdiff = maxdiff
+        self._interp = self._interpf(colorsA, colorsB, colorsC, colorCenter)
+    
+    def _interpf(self, colorsA:Iterable, colorsB:Iterable, colorsC:Iterable,
+                        colorCenter=None) -> Callable:
+        """
+        Returns interpolation function to find color for normalized u, v and w.
+                
+        Implementation details:
+            Interpolation in 3 triangular sections, namely (A, B, center), (B,
+            C, center), (C, A, center).
+            colorCenter not specified: Center color is calculated from innermost
+            elements in colorsA, colorsB, colorsC.
+            If a shape is triangular and has its color specified only at the 
+            corners, 'normal' barycentric coordinates are used. Otherwise, 
+            'generalised' barycentric coordinates are used.
+        """
+        anchorpoints, anchorcolors = [], []
+        colorsABC = [[to_rgba(col) for col in cols] 
+                     for cols in [colorsA, colorsB, colorsC]]
+        for corner, cols in zip(self._cornersABC, colorsABC):
+            for i, col in enumerate(cols):
+                anchorpoints.append(corner * (1 - i/len(cols)))
+                anchorcolors.append(col)
+        if colorCenter: 
+            anchorpoints.append([0, 0])
+            anchorcolors.append(to_rgba(colorCenter))
+        anchorpoints, anchorcolors = np.array(anchorpoints), np.array(anchorcolors)
         
-    Returns:
-        Function that accepts values (a, b, c) on each axis, and returns the
-        interpolated value. (a, b, c) should be barycentric coordinates, but 
-        are forced in correct domain if they are not.
-    
-    Implementation details:
-        valueCenter specified:
-            Interpolation in 3 triangular sections, namely (A, B, center), 
-            (B, C, center), (C, A, center). 
-        valueCenter not specified:
-            Interpolation in central triangle with final elements in valuesA, 
-            valuesB, valuesC. If valuesA (or valuesB or valuesC) contains >1
-            element, there exist additional shapes between the corners ABC and 
-            the central triangle, and interpolation is done for these as well.
-        If a shape is triangular and has its value specified only at its corners,
-        'normal' barycentric coordinates are used. Otherwise, 'generalised' bary-
-        centric coordinates are used.
-    """
-    valuesABC = np.array([np.array(valuesA), np.array(valuesB), np.array(valuesC)])
-    cornersABC = np.array([(0, 1), (-SR3/2, -0.5), (SR3/2, -0.5)])
+        pg = Polygonate(anchorpoints, convex=True) #divide into up to 4 convex shapes
+        interpf = [polygon(anchorpoints[ai], anchorcolors[ai]) for ai in pg.shapes]
 
-    anchorpoints, anchorvalues = [], []
-    for corner, values in zip(cornersABC, valuesABC):
-        for i, value in enumerate(values):
-            anchorpoints.append(corner * (1 - i/len(values)))
-            anchorvalues.append(value)
-    if valueCenter:
-        anchorpoints.append([0, 0])
-        anchorvalues.append(valueCenter)
-    anchorpoints, anchorvalues = np.array(anchorpoints), np.array(anchorvalues)
-    
-    pg = Polygonate(anchorpoints, convex = True)
-    interpf = [polygon(anchorpoints[ai], anchorvalues[ai]) for ai in pg.shapes]
+        def f(*uvw:float):
+            xy = self._uvw_to_xy(uvw, clip=True)
+            s = pg.find_shape(xy)
+            if s > -1:
+                return interpf[s](xy)
+            return to_rgba('k') #should never happen
+        
+        return f
 
-    def interp(*abc:float):
-        abc = np.array(abc)
-        abc = abc - abc.min() #does not change location of point
-        if abc.sum() > 1:
-            abc = abc / abc.sum() #make sure it stays inside triangle
-        point = abc.dot(cornersABC)
-        s = pg.find_shape(point)
-        if s > -1:
-            return interpf[s](point)
-        return None #should never happen
-    
-    return interp
+    def _uvw_to_xy(self, uvw:Iterable[float], clip:bool=False) -> Tuple[float]:
+        """
+        Map normed values uvw along axes ABC onto xy-coordinates inside triangle.
+        . If clip==True, clips the xy-coordinates so that they stay inside the
+          triangle.
+        """
+        uvw = np.array(uvw)
+        uvw = uvw - uvw.min() #does not change location of point
+        if clip and uvw.sum() > 1:
+            uvw /= uvw.sum() #make sure it stays inside triangle
+        xy = uvw.dot(self._cornersABC)    
+        return xy
+    def _xy_to_uvw(self, xy:Iterable[float], positive:bool=False) -> Tuple[float]:
+        """
+        Turn xy-coordinates into a tuple of normed values uvw that maps onto it.
+        . If positive==True, the tuple contains nonnegative values with at least 
+          being 0.
+        """
+        xy = np.array(xy)
+        uvw = self._cornersABC.dot(xy)
+        if positive:
+            uvw -= uvw.min()
+        return uvw
 
-
-def cmap3(colorsA:Iterable=[to_rgb('r')], colorsB:Iterable=[to_rgb('g')], 
-               colorsC:Iterable=[to_rgb('b')], colorCenter=None, 
-               maxdiff=1, ratio:bool=False) -> Callable:
-    """
-    Create function to find color from 3 float values.
-    
-    Arguments:
-        colorsA is a list of colors, which are used if the value on axis a is 
-        largest (and those on b and c are equal). In other cases, there is an 
-        interpolation between the colors of the axes with the largest values.
-        colorCenter, if specified, is the color used if values on all axes are 
-        equal.
-        maxdiff: if the difference (if ratio == False) or the ratio between
-        values is larger than this maximum, the colors are clipped.
-        ratio: specifies if difference (False) or ratio (True, default) between 
-        the values must be calculated. 
-
-    Returns:
+    def color(self, *abc:float) -> Tuple[float]:
+        """
         Function that accepts values a, b, and c, and returns the color that 
         best fits this datapoint. Smallest value is used as reference for the
         other ones.
-    """
-    f = interp_on_3axes(colorsA, colorsB, colorsC, colorCenter)
-    mindiff = 1 if ratio else 0
-    # mapper = interp1d((mindiff, maxdiff), (0, 1), bounds_error=False, fill_value=(0, 1))
-
-    # R2 = np.array([[-1, -SR3/2],
-    #                 [SR3/2,  -1]]) #rotate 120 degrees in 2D (i.e. A->B->C)
-    # R3 = np.array([[0, 1, 0],
-    #                 [0, 0, 1],
-    #                 [1, 0, 0]]) #rotate through axes in 3D a<-b<-c
-    # T = np.array([[0, -SR3/4, SR3/4],
-    #               [1,   -3/4,  -3/4]]) # (a, b, c) to (x, y)
+        """
+        uvw = np.array(abc) / self.maxdiff #normalize
+        return to_rgba(np.clip(self._interp(*uvw), 0, 1))
     
-    def color(*abc:float):
-        abc = np.array(abc) / maxdiff #mapping full scale to [0, 1]
-        return f(*abc)
+    def colortriangle(self, cax, pixels=100):
+        """Draws a triangular legend into the cax axes object."""
+        shape = (int(pixels*0.8), pixels)
+        img = np.zeros((*shape, 4)) # transparent image
+        es = np.array([(0, 1), (-SR3/2, -0.5), (SR3/2, -0.5)]) #unit vectors in axes' directions
+        for j, x in enumerate(np.linspace(-1, 1, shape[1])):
+            for i, y in enumerate(np.linspace(-0.65, 1.05, shape[0])):
+                xy = np.array((x, y))
+                uvw = self._xy_to_uvw(xy)
+                k = np.argmin(uvw)
+                if uvw[k] > -0.52:
+                    abc = uvw*self.maxdiff
+                    img[i, j, :] = self.color(*abc)
+    
+        cax.imshow(img, extent=[-1, 1, -0.65, 1.05], origin='lower', aspect='equal',
+                   interpolation='bicubic')
+        cax.set_yticks([])
+        cax.set_xticks([])
+        cax.patch.set_alpha(0)
+        for s in cax.spines.values():
+            s.set_visible(False)
         
-        # # Turn into correct range: one component being 0, and others maximum of 1.
-        # if ratio:
-        #     minval = np.min(abc)
-        #     if minval <= 0: minval = 0.01
-        #     abc = mapper(abc / minval)
-        # else:
-        #     abc = mapper(abc - np.min(abc))
-        # # 3D to 2D, inside the triangle
-        # times = np.argmax(abc) #index of best value; determines how often to rotate to project onto A or axis a
-        # point = np.linalg.matrix_power(R2, times) \
-        #     @ T @ np.linalg.matrix_power(R3, times) @ abc
-        # return f(point)
+        line = np.array([es[k] for k in [0,1,2,0]])
+        mask = np.append(line, (line*1.2)[::-1], axis=0)
+        cax.fill(mask[:,0], mask[:,1], 'w')
+        cax.plot(line[:,0], line[:,1], 'k', linewidth=1)
+        
+        def setticks(abc_list:Iterable[Iterable[float]],  *args, **kwargs):
+            for abc in abc_list:
+                uvw = np.array(abc) / self.maxdiff
+                xy = self._uvw_to_xy(uvw, clip=True)
+                cax.plot(*xy, *args, **kwargs)
+            cax.get_ticks = lambda: abc_list
+        cax.set_ticks = setticks
+        
+        def setticklabels(label_list:Iterable[str], *args, **kwargs):
+            for abc, label in zip(cax.get_ticks(), label_list):
+                uvw = np.array(abc) / self.maxdiff
+                xy = self._uvw_to_xy(uvw, clip=True)
+                cax.text(*xy + [0,-0.1], label, *args, **{'ha':'center', 'va':'top', 'bbox':{
+                    'color':'w', 'alpha':0.3}, **kwargs})
+        cax.set_ticklabels = setticklabels
+        
+    def colorbars(self, cax, pixels=200, orientation='horizontal', vstacked=False):
+        """Draws a 3 colorbar legend into the cax axes object."""
+        from mpl_toolkits.axes_grid.inset_locator import inset_axes
+        cax.set_yticks([])
+        cax.set_xticks([])
+        cax.patch.set_alpha(0)
+        for s in cax.spines.values():
+            s.set_visible(False)
 
-    return color
-
-
-
-    
+        if (orientation=='vertical') ^ (not vstacked):
+            width, height, locs = '100%', '23%', [9, 10, 8]
+        else:
+            width, height, locs = '25%', '100%', [6, 10, 7]
+        axs = [inset_axes(cax, width, height, loc) for loc in locs]
+        for i, ax in enumerate(axs):
+            if i == 0:   fun = lambda a: self.color(a, 0, 0)
+            elif i == 1: fun = lambda b: self.color(0, b, 0)
+            else:        fun = lambda c: self.color(0, 0, c)
+            img = np.array([[fun(d) for d in np.linspace(0, self.maxdiff, pixels)]])
+            if orientation=='vertical':
+                img = img.transpose(1, 0, 2)
+            ax.imshow(img, extent=[0,self.maxdiff,0,self.maxdiff], origin='lower', 
+                      aspect='auto', interpolation='bicubic')
+            if orientation=='vertical':
+                ax.set_xticks([])
+                ax.set_ticks = ax.set_yticks
+                ax.set_ticklabels = ax.set_yticklabels
+            else:
+                ax.set_yticks([])
+                ax.set_ticks = ax.set_xticks
+                ax.set_ticklabels = ax.set_xticklabels
+            ax.set_ticks([0, self.maxdiff])
+            ax.set_ticklabels(['same', 'max'])
+        cax.subaxes = axs
