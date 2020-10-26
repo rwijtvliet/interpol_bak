@@ -162,7 +162,7 @@ The location on the triangle that a color is selected from, indicates the relati
 
 The color mapping function to find the color of a point (*a*, *b*, *c*), is included in the `ColorMap3` class. The arguments to initialize this class are the colors on each axis. Here, too, it's possible to include arguments that handle the mapping of the input domain.
 
-`ColorMap3` objects contains the method `.color` to get the color of the point (*a*, *b*), as well as the methods `.colortriangle` and `.colorbars` to plot the legend.
+`ColorMap3` objects contains the method `.color` to get the color of the point (*a*, *b*, *c*), as well as the methods `.colortriangle` and `.colorbars` to plot the legend.
 
 Sample usage:
 ```python
