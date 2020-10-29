@@ -14,6 +14,7 @@ In all code samples, the module `point2color` is assumed to be imported `as p2c`
 The function `polygon` interpolates values in the 2D-plane, when the values at a nodes of a closed polygon are provided. The algorithm for this is described in [this great paper](https://www.inf.usi.ch/hormann/papers/Hormann.2006.MVC.pdf).
 
 Sample use:
+
 ```python
 # %% Sample use of interpolation function in/around single polygon.
 
@@ -43,6 +44,7 @@ There are 2 functions that interpolate values in the 2D-plane, when the values a
 Though it's not perfect, `polygons` generally gives much smoother results, as can be seen in the illustration below.
 
 Sample use:
+
 ```python
 # %% Sample use of interpolation functions in/around set of points.
 
@@ -65,9 +67,11 @@ Here an illustration that shows how the interpolated values/colors vary across t
 
 
 ## Colormaps
+
 The interpolation functions above can be used for colormaps with 3 axes. For a better understanding, we go into colormaps with 1 and 2 axes first, even though these don't use the interpolation functions.
 
 ### With 1 axis
+
 A common colormap turns any value in the interval [0, 1] into its corresponding color, for example the 'terrain' colormap in matplotlib: 
 
 ![cmap](img/cmap_notdiverging.png)
@@ -77,6 +81,7 @@ Here the values for which a color has been explicitly specified (the anchor poin
 If the values that we want to turn into colors don't live on the interval [0, 1], some mapping of the input domain onto [0, 1] is necessary, but this is left out of consideration here.
 
 ### With 2 axes: `ColorMap2`
+
 If we have a 'diverging' colormap, like the red-green one below, we can see this as a special case of the 1-axis colormap we just saw. But we can also imagine that there are in fact 2 axes (A on the left and B on the right), that meet in the middle. If values for *a* and *b*, both in the interval [0, 1], are provided, we are able to pick a single color on the bar. We do this by taking difference d = b - a. If b is the larger value, we have d > 0, and the color that belongs to this point (a, b) is the color that we find on axis B at the value d. If a is the larger value, we have d < 0, and the corresponding color is found on axis A at the value -d. 
 
 An example would be when a is my expenditure in a given time period, and b is my income in the same time period. The resulting diverging colormap shows the 'income balance':
@@ -88,6 +93,7 @@ An example would be when a is my expenditure in a given time period, and b is my
 It might seem a bit silly to turn what is basically a single variable (*d*) into two variables (*a* and *b*), especially since our color map is really only 1-dimensional. However, this will help us generalise onto three axes, further below. 
 
 It's important that we see that this color map actually displays the *relative size* of *a* and *b*:
+
 * It shows us, *which is the largest* of the 2 values, from the principle color (red or green) - if *a* is larger, the color comes from axis A. 
 * It shows us, *how much larger* the largest of the two values is - the further the color is towards the end of the axis, the larger their difference.
 
@@ -106,6 +112,7 @@ The color mapping function to find the color of a point (*a*, *b*), is included 
 `ColorMap2` objects contain the method `.color` to get the color of the point (*a*, *b*), as well as the method `.colorbar` to plot the legend.
 
 Sample usage:
+
 ```python
 # %% Sample use of ColorMap2, short
 
@@ -114,6 +121,7 @@ cmap.color(0.2, 0.5) #(0.6699, 0.3778, 0.4678, 1.0) (includes alpha)
 ```
 
 Or, more elaborate:
+
 ```python
 # %% Sample use of ColorMap2, longer
 
@@ -138,10 +146,12 @@ cmap.colorbar(cax)
 cax.set_ticks([(1,0), (0,0), (0,1)], '')
 cax.set_ticklabels(['x', 'same', 'y'])
 ```
+
 ![colormap2](img/sample_colormap2.png)
 
 
 ## With 3 axes: `ColorMap3`
+
 Now, what if we have another transport mode in the example of the previous section? What if we also have the option of taking public transport, and want to be able to pick a color, based on the differences in time needed to get somewhere by bike, car, or public transport?
 
 Having 3 values means 3 axes: A, B, C. These still meet in a point, but at 120-degree angles:
@@ -165,6 +175,7 @@ The color mapping function to find the color of a point (*a*, *b*, *c*), is incl
 `ColorMap3` objects contains the method `.color` to get the color of the point (*a*, *b*), as well as the methods `.colortriangle` and `.colorbars` to plot the legend.
 
 Sample usage:
+
 ```python
 # %% Sample use of ColorMap3, short
 
@@ -173,6 +184,7 @@ cmap.color(0.2, 0.5, -0.3) #(0.5864, 0.2974, 0.4528, 1.0)
 ```
 
 Or, more elaborate:
+
 ```python
 # %% Sample use of ColorMap3, longer
 
@@ -205,5 +217,6 @@ for i, ax in enumerate(cax2.subaxes):
     ax.set_title('xyr'[i])
     ax.set_ticks([])
 ```
+
 ![colormap3](img/sample_colormap3.png)
 
