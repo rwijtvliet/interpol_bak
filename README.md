@@ -11,7 +11,7 @@ In all code samples, the module `point2color` is assumed to be imported `as p2c`
 
 ### Interpolation in/around a single polygon: `polygon`
 
-Interpolate the value in the 2D-plane, when the values at a nodes of a closed polygon are provided. 
+The function `polygon` interpolates values in the 2D-plane, when the values at a nodes of a closed polygon are provided. The algorithm for this is described in [this great paper](https://www.inf.usi.ch/hormann/papers/Hormann.2006.MVC.pdf).
 
 Sample use:
 ```python
@@ -35,12 +35,12 @@ Here an illustration that shows how the interpolated values/colors vary across t
 
 ### Interpolation around a set of points: `triangles` and `polygons`
 
-Interpolate the value in the 2D-plane, when the values at several points are provided. There are 2 functions for this:
+There are 2 functions that interpolate values in the 2D-plane, when the values at several (unordered) points are provided.
 
-* `triangles` tesselates the plane with triangles based on the provided anchorpoints, and does 'standard' barycentric interpolation within each triangle. Disadvantage: a maximum of 3 anchors is used for any point, which does not always look good. Also, extrapolation, i.e. to points that do not lay within the convex hull around the anchorpoints, is not possible. If wanted, the function tries nonetheless, but results are often poor.
-* `polygons` is a more general function, that gives better results. It divides the plane into *polygons* and does interpolation inside of them, based on the algorithm described in [this great article](https://cgvr.cs.uni-bremen.de/papers/barycentric/barycentric.pdf)
+* `triangles` tessellates the plane with triangles (Delaunay tessellation) based on the provided anchorpoints, and does 'standard' barycentric interpolation within each triangle. Disadvantage: a maximum of 3 anchors is used for any point, which does not always look good. Also, extrapolation, i.e. to points that do not lay within the convex hull around the anchorpoints, is not possible. If wanted, the function tries nonetheless, but results are often poor.
+* `polygons` is a more general function, that gives better results. It divides the plane into *polygons* (using the "polygonation" developed [in this project](https://github.com/rwijtvliet/polygonation)) and does interpolation inside of them using the `polygon` function above.
 
-Though it's not perfect, `polygon` generally gives much smoother results, as can be seen in the illustration below.
+Though it's not perfect, `polygons` generally gives much smoother results, as can be seen in the illustration below.
 
 Sample use:
 ```python
@@ -60,7 +60,7 @@ f((0.5, 0.6)) #0.71...
 # Interpolation with colors: analogously
 ```
 
-Here an illustration that shows how the interpolated values/colors vary across the plane. It also shows how both functions tesselate the plane in the first graph of each row. Note how the interpolations on the second row (using `polygons`), are smoother than those on the first (using `triangles`).
+Here an illustration that shows how the interpolated values/colors vary across the plane. It also shows how both functions tessellate the plane in the first graph of each row. Note how the interpolations on the second row (using `polygons`), are smoother than those on the first (using `triangles`).
 ![points in plane](img/illustration_points.png)
 
 
@@ -72,7 +72,7 @@ A common colormap turns any value in the interval [0, 1] into its corresponding 
 
 ![cmap](img/cmap_notdiverging.png)
 
-Here the values for which a color has been explicitly specified (the anchor points), are marked with dots. The color for any other value is interpolated from the nearest on either side).
+Here the values for which a color has been explicitly specified (the anchor points), are marked with dots. The color for any other value is interpolated from the nearest on either side.
 
 If the values that we want to turn into colors don't live on the interval [0, 1], some mapping of the input domain onto [0, 1] is necessary, but this is left out of consideration here.
 
@@ -144,7 +144,7 @@ cax.set_ticklabels(['x', 'same', 'y'])
 ## With 3 axes: `ColorMap3`
 Now, what if we have another transport mode in the example of the previous section? What if we also have the option of taking public transport, and want to be able to pick a color, based on the differences in time needed to get somewhere by bike, car, or public transport?
 
-Having 3 values means 3 axes: A, B, C. These still meet in a point, but at 120 degree angles:
+Having 3 values means 3 axes: A, B, C. These still meet in a point, but at 120-degree angles:
 
 ![3 axes, partial](img/cmap3_transport_partial.png)
 

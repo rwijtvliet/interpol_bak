@@ -36,35 +36,32 @@ def polygon(anchorpoints:Iterable, anchorvalues:Iterable) -> Callable:
         raise ValueError("Parameters 'anchorpoints' and 'anchorvalues' must be of equal length.")
     if len(anchorpoints) < 3:
         raise ValueError("At least 3 anchorpoints must be specified.")
+    
+    F = anchorvalues
+    F_next = np.roll(anchorvalues, -1, axis=0)
+    eps = 1e-7
+    def interp(point):  
+        S = anchorpoints - point #distance vector to each anchorpoint
+        R = np.linalg.norm(S, axis=1) #distances to each anchorpoint
+        for r, f in zip(R, F): 
+            if -eps < r < eps: 
+                return f #point is on anchor point
+            
+        S_next = np.roll(S, -1, axis=0) # neighbors
+        R_next = np.roll(R, -1)
+        A = np.array([np.linalg.det([s, s_next]) 
+                      for s, s_next in zip(S, S_next)]) #determinant of each displ. vector with neighbor
+        D = np.array([np.dot(s, s_next) 
+                      for s, s_next in zip(S, S_next)])
+        for a, d, r, r_next, f, f_next in zip(A, D, R, R_next, F, F_next):
+            if -eps < a < eps and d < 0:
+                return (r_next*f + r*f_next) / (r + r_next) #point is on edge between anchor points
         
-    def interp(point):
-        dv = anchorpoints - point #distance vector to each anchorpoint
-        r = np.linalg.norm(dv, axis=1) #distances to each anchorpoint
-        for i, rr in enumerate(r): 
-            if rr == 0: 
-                return anchorvalues[i] #return anchor value if point is on anchor point
-        dv_next = np.roll(dv, -1, axis=0) # neighbor to each dv
-        A = np.array([np.linalg.det([d1, d2])/2 for d1, d2 in zip(dv, dv_next)]) #determinant of each displ. vector with neighbor
-        D = np.array([np.dot(d1, d2) for d1, d2 in zip(dv, dv_next)])
-        for i, (aa, dd) in enumerate(zip(A, D)):
-            if aa == 0 and dd < 0:
-                j = (i + 1) % len(anchorpoints)
-                return (r[j] * anchorvalues[i] + r[i] * anchorvalues[j]) / (r[i] + r[j])
-        W = 0
-        value = np.zeros(anchorvalues[0].shape)
-        for i, anchorvalue in enumerate(anchorvalues):
-            i_prev = (i-1)%len(anchorvalues)
-            i_next = (i+1)%len(anchorvalues)
-            w = 0
-            if A[i_prev] != 0:
-                w += (r[i_prev] - D[i_prev]/r[i])/A[i_prev]
-            if A[i] != 0:
-                w += (r[i_next] - D[i]/r[i])/A[i]
-            value += anchorvalue * w
-            W += w
-        if W == 0: #no weights - should be impossible
-            return ValueError(f'Point {point} is outside the shape.')
-        return value/W
+        T = np.array([a / (r*r_next + d) 
+                      for a, d, r, r_next in zip(A, D, R, R_next)])
+        T_prev = np.roll(T, 1)
+        W = np.array([(t_prev + t) / r for t_prev, t, r in zip(T_prev, T, R)])
+        return W.dot(F) / W.sum()
     
     return interp
 
